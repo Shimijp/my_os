@@ -9,7 +9,7 @@ use x86_64::instructions::interrupts::without_interrupts;
 use crate::{ serial_println};
 use spin::Mutex;
 
-const SCALE: usize = 2;
+const SCALE: usize = 1;
 const SIZE : usize = 8;
 const TOTAL : usize = SIZE * SCALE;
 #[derive(Debug, Clone, Copy)]
@@ -81,6 +81,7 @@ impl Writer
                 }
         }
     }
+
     fn new_line(&mut self)
     {
         self.column_pos = 0;
@@ -113,6 +114,10 @@ impl Writer
 
     fn write_char(&mut self, c: char)
     {
+        if c == '\u{8}' {
+            self.delete_char();
+            return;
+        }
         self.clear_cursor();
         if c == '\n' {
             self.new_line();
@@ -187,10 +192,38 @@ impl Writer
             self.clear_cursor();
         }
     }
-    pub(crate) fn delete_char(&mut self)
-    {
-        //TODO
+    pub(crate) fn delete_char(&mut self) {
+        self.clear_cursor();
+
+        if self.column_pos >= TOTAL {
+            self.column_pos -= TOTAL;
+        } else {
+            if self.row_pos == 0 {
+
+                self.draw_cursor();
+                return;
+            }
+            self.row_pos -= TOTAL;
+            self.column_pos = self.info.width - TOTAL;
+
+        }
+
+        let current_color = self.rbga;
+        self.rbga = Rgba::new(0x00000000);
+
+        for x in self.column_pos..(self.column_pos + TOTAL) {
+            for y in self.row_pos..(self.row_pos + TOTAL) {
+                self.draw_pixel(x, y);
+            }
+        }
+        self.row_pos -= TOTAL;
+        self.column_pos = self.info.width - TOTAL;
+
+        self.rbga = current_color;
+
+        self.draw_cursor();
     }
+
 
 fn write_string(&mut self, s: &str)
     {

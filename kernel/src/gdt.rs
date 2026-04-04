@@ -3,6 +3,7 @@ use x86_64::VirtAddr;
 use x86_64::structures::tss::TaskStateSegment;
 use lazy_static::lazy_static;
 use x86_64::structures::gdt::{GlobalDescriptorTable, Descriptor, SegmentSelector};
+use crate::println;
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 struct Selectors {
@@ -35,7 +36,7 @@ lazy_static!
 }
 lazy_static!
 {
-    static ref GDT :( GlobalDescriptorTable , Selectors)=
+     static ref GDT :( GlobalDescriptorTable , Selectors)=
     {
         let mut gdt = GlobalDescriptorTable::new();
         let data_selector = gdt.append(Descriptor::kernel_data_segment());

@@ -10,6 +10,8 @@ use crate::framebuffer::WRITER;
 
 pub mod gdt;
 
+pub mod memory;
+
 pub mod serial;
 pub mod interrupts;
 pub mod framebuffer;
@@ -75,13 +77,13 @@ pub extern "C" fn _start() -> ! {
     test_main();
     loop {}
 }
+
+//actual lib starts here
 pub fn init_framebuffer(buffer : &'static mut [u8], info : FrameBufferInfo)
 {
     framebuffer::init(buffer, info);
 
 }
-
-//actual lib starts here
 pub fn init() {
     gdt::init_gdt();
     interrupts::init_idt();
@@ -89,22 +91,14 @@ pub fn init() {
         unsafe {
             let mut pics = interrupts::PICS.lock();
             pics.initialize();
+            //stop blocking interrupt signals, critical in UEFI
             pics.write_masks(0xFC, 0xFF);
 
         }
     );
     x86_64::instructions::interrupts::enable();
-
-
-
-
-
-
-
-
-
 }
-pub fn hlt_stop() -> !
+pub fn hlt_loop() -> !
 {
     loop {
         x86_64::instructions::hlt()
