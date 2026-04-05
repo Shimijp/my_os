@@ -3,6 +3,10 @@ name = "builder"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "test-runner"
+path = "src/test_runner.rs"
+
 [dependencies]
 bootloader = "0.11"
 ovmf-prebuilt = "0.2.8"

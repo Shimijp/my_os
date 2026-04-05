@@ -34,7 +34,7 @@ harness = false
 
 [[bin]]
 name = "my_os"
-test = true
+test = false
 bench = false
 
 
