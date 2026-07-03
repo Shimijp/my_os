@@ -9,5 +9,3 @@ path = "src/test_runner.rs"
 
 [dependencies]
 bootloader = "0.11"
-ovmf-prebuilt = "0.2.8"
-ureq = { version = "*", features = ["native-tls"] }

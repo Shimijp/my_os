@@ -2,17 +2,14 @@ use std::path::PathBuf;
 use std::process::Command;
 
 fn main() {
-    // === שלב אפס: הגדרת נתיבים אבסולוטית ===
-    // העוגן שלנו: התיקייה של ה-builder (my_os/builder)
+
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
 
-    // תיקיית השורש של הפרויקט: אנחנו עולים רמה אחת למעלה ל-my_os
     let root_dir = PathBuf::from(manifest_dir)
         .join("..")
         .canonicalize()
         .expect("FATAL: Failed to find project root directory");
 
-    // נגזרות הנתיבים מתוך השורש (הכל אבסולוטי עכשיו!)
     let kernel_path = root_dir.join("target/x86_64-my_os/debug/my_os");
     let uefi_img_path = root_dir.join("target/uefi.img");
     let firmware_dir = root_dir.join("firmware/x64");
@@ -21,7 +18,6 @@ fn main() {
     // === Step 1: Build the kernel ===
     println!("Step 1: Building the kernel...");
 
-    // שים לב: אנחנו מוסיפים current_dir כדי לוודא ש-cargo רץ מהשורש של הפרויקט
     let build_status = Command::new("cargo")
         .current_dir(&root_dir)
         .arg("build")

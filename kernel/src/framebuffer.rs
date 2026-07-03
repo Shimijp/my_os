@@ -9,9 +9,20 @@ use x86_64::instructions::interrupts::without_interrupts;
 use crate::{ serial_println};
 use spin::Mutex;
 
-const SCALE: usize = 1;
-const SIZE : usize = 8;
-const TOTAL : usize = SIZE * SCALE;
+// Visual tuning knobs. These only change *appearance* — the pixel-writing
+// logic (draw_pixel, glyph rasterization, scrolling) below is untouched.
+const SCALE: usize = 2;                 // integer upscale of the 8x8 font
+const SIZE: usize = 8;                  // source glyph size (font8x8)
+const TOTAL: usize = SIZE * SCALE;      // rendered glyph cell size, in pixels
+
+const PADDING_X: usize = 12;            // left/right inset from the screen edge
+const PADDING_Y: usize = 12;            // top/bottom inset from the screen edge
+
+// The background is painted with a plain byte-fill, so it must be a shade of
+// grey (equal R/G/B) to look identical under either RGB or BGR pixel order.
+const BACKGROUND: u32 = 0x1E1E1EFF;     // used when we draw background pixels
+const BACKGROUND_BYTE: u8 = 0x1E;       // the same grey, used for byte-fills
+const FOREGROUND: u32 = 0xE6E6EBFF;     // soft off-white text
 #[derive(Debug, Clone, Copy)]
 pub struct Rgba
 {
@@ -49,15 +60,16 @@ impl Writer
 {
     pub fn new(buffer: &'static mut [u8], info: FrameBufferInfo, color: u32) -> Self
     {
-        Writer {
+        let writer = Writer {
             info,
             rbga: Rgba::new(color),
-            row_pos: 0,
-            column_pos: 0,
+            row_pos: PADDING_Y,
+            column_pos: PADDING_X,
             frame_buffer: buffer,
             cursor_visible: false,
-
-        }
+        };
+        writer.frame_buffer.fill(BACKGROUND_BYTE);
+        writer
     }
     fn draw_pixel(&mut self, pos_x: usize, pos_y: usize)
     {
@@ -84,9 +96,9 @@ impl Writer
 
     fn new_line(&mut self)
     {
-        self.column_pos = 0;
+        self.column_pos = PADDING_X;
         self.row_pos += TOTAL;
-        if self.row_pos + TOTAL > self.info.height {
+        if self.row_pos + TOTAL + PADDING_Y > self.info.height {
             self.move_up();
 
             self.row_pos -= TOTAL;
@@ -108,7 +120,7 @@ impl Writer
 
         let start_of_last_line = self.frame_buffer.len() - bytes_per_text_row;
 
-        self.frame_buffer[start_of_last_line..].fill(0);
+        self.frame_buffer[start_of_last_line..].fill(BACKGROUND_BYTE);
     }
 
 
@@ -124,7 +136,7 @@ impl Writer
             self.draw_cursor();
             return;
         }
-        if self.column_pos + TOTAL > self.info.width {
+        if self.column_pos + TOTAL + PADDING_X > self.info.width {
             self.new_line();
         }
         if let Some(glyph) = BASIC_FONTS.get(c)
@@ -147,7 +159,7 @@ impl Writer
             }
         }
         self.column_pos += TOTAL;
-        if self.column_pos >= self.info.width || c == '\n'
+        if self.column_pos + PADDING_X >= self.info.width || c == '\n'
         {
             self.new_line()
 
@@ -158,7 +170,7 @@ impl Writer
     fn draw_cursor(&mut self)
     {
 
-        for x in self.column_pos..self.column_pos +2
+        for x in self.column_pos..self.column_pos + 2 * SCALE
         {
             for y in self.row_pos .. self.row_pos +TOTAL
             {
@@ -170,7 +182,7 @@ impl Writer
     fn clear_cursor(&mut self)
     {
         let color = self.rbga;
-        self.rbga = Rgba::new(0x0);
+        self.rbga = Rgba::new(BACKGROUND);
         for x in self.column_pos..self.column_pos +TOTAL
         {
             for y in self.row_pos .. self.row_pos +TOTAL
@@ -195,29 +207,27 @@ impl Writer
     pub(crate) fn delete_char(&mut self) {
         self.clear_cursor();
 
-        if self.column_pos >= TOTAL {
+        // Step back one cell, wrapping up to the previous line if needed.
+        if self.column_pos >= PADDING_X + TOTAL {
             self.column_pos -= TOTAL;
-        } else {
-            if self.row_pos == 0 {
-
-                self.draw_cursor();
-                return;
-            }
+        } else if self.row_pos >= PADDING_Y + TOTAL {
             self.row_pos -= TOTAL;
-            self.column_pos = self.info.width - TOTAL;
-
+            self.column_pos = self.info.width - PADDING_X - TOTAL;
+        } else {
+            // Already at the very first cell: nothing to delete.
+            self.draw_cursor();
+            return;
         }
 
+        // Erase the cell we landed on by painting it with the background.
         let current_color = self.rbga;
-        self.rbga = Rgba::new(0x00000000);
+        self.rbga = Rgba::new(BACKGROUND);
 
         for x in self.column_pos..(self.column_pos + TOTAL) {
             for y in self.row_pos..(self.row_pos + TOTAL) {
                 self.draw_pixel(x, y);
             }
         }
-        self.row_pos -= TOTAL;
-        self.column_pos = self.info.width - TOTAL;
 
         self.rbga = current_color;
 
@@ -234,10 +244,9 @@ fn write_string(&mut self, s: &str)
     }
     pub fn clear_screen(&mut self)
     {
-        for i in 0..self.frame_buffer.len()
-        {
-            self.frame_buffer[i] = 0;
-        }
+        self.frame_buffer.fill(BACKGROUND_BYTE);
+        self.row_pos = PADDING_Y;
+        self.column_pos = PADDING_X;
     }
 
 }
@@ -248,7 +257,7 @@ lazy_static! {
 
 pub fn init(buffer : &'static mut [u8], info : FrameBufferInfo)
 {
-    let writer = Writer::new(buffer, info, 0xF2F2F2FF);
+    let writer = Writer::new(buffer, info, FOREGROUND);
     let mut guard = WRITER.lock();
     *guard = Some(writer);
 }

@@ -7,14 +7,15 @@
 use core::panic::PanicInfo;
 use bootloader_api::info::FrameBufferInfo;
 use crate::framebuffer::WRITER;
-
+extern crate alloc;
 pub mod gdt;
-
+pub mod allocator;
 pub mod memory;
 
 pub mod serial;
 pub mod interrupts;
 pub mod framebuffer;
+mod linked_list_allocator;
 
 pub trait Testable {
     fn run(&self) -> ();
