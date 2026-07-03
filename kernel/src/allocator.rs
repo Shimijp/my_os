@@ -1,8 +1,12 @@
+
+
+
+
 #[global_allocator]
 static ALLOCATOR: LockedLinkedListAllocator = LockedLinkedListAllocator::new();
 
 const HEAP_START: usize = 0x_4444_4444_0000;
-const HEAP_SIZE: usize = 1024 * 1024; // 1 MB
+const HEAP_SIZE: usize =  16 * 1024 * 1024; // 16 MB
 use x86_64::{
     structures::paging::{
         mapper::MapToError, FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB,

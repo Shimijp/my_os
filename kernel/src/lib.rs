@@ -1,5 +1,6 @@
 #![no_std]
 #![feature(abi_x86_interrupt)]
+#![feature(alloc_error_handler)]
 #![cfg_attr(test, no_main)]
 #![feature(custom_test_frameworks)]
 #![test_runner(crate::test_runner)]
@@ -16,6 +17,8 @@ pub mod serial;
 pub mod interrupts;
 pub mod framebuffer;
 mod linked_list_allocator;
+pub mod task;
+mod scheduler;
 
 pub trait Testable {
     fn run(&self) -> ();
@@ -62,7 +65,10 @@ pub enum QemuExitCode {
     Success = 0x10,
     Failed = 0x11,
 }
-
+#[alloc_error_handler]
+fn alloc_error_handler(layout: core::alloc::Layout) -> ! {
+    panic!("allocation error: {:?}", layout);
+}
 pub fn exit_qemu(exit_code: QemuExitCode) {
     use x86_64::instructions::port::Port;
 
