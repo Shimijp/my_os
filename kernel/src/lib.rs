@@ -18,7 +18,7 @@ pub mod interrupts;
 pub mod framebuffer;
 mod linked_list_allocator;
 pub mod task;
-mod scheduler;
+pub mod scheduler;
 
 pub trait Testable {
     fn run(&self) -> ();

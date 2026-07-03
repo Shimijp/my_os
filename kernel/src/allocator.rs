@@ -4,7 +4,7 @@
 
 #[global_allocator]
 static ALLOCATOR: LockedLinkedListAllocator = LockedLinkedListAllocator::new();
-
+pub  static  mut IS_HEAP_INIT : bool = false;
 const HEAP_START: usize = 0x_4444_4444_0000;
 const HEAP_SIZE: usize =  16 * 1024 * 1024; // 16 MB
 use x86_64::{
@@ -43,6 +43,7 @@ pub fn init_heap(
     unsafe
         {
             ALLOCATOR.init(HEAP_START, HEAP_SIZE);
+            IS_HEAP_INIT = true;
 
         }
 

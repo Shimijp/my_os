@@ -2,8 +2,8 @@
 #![no_main]
 #![feature(custom_test_frameworks)]
 #![reexport_test_harness_main = "test_main"]
-extern crate alloc;
 
+extern crate alloc;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
 use alloc::vec;
@@ -14,6 +14,9 @@ use core::panic::PanicInfo;
 use my_os::memory::{BootInfoFrameAllocator, init};
 use my_os::{allocator, print, println, serial_println};
 use x86_64::VirtAddr;
+use my_os::scheduler::SCHEDULER;
+use my_os::task::Task;
+
 #[panic_handler]
 #[cfg(not(test))]
 fn panic(_info: &PanicInfo) -> ! {
@@ -30,11 +33,19 @@ pub static BOOTLOADER_CONFIG: bootloader_api::BootloaderConfig = {
 };
 
 bootloader_api::entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
-
+fn try_run()
+{
+    println!("hello, i am running");
+    
+}
+fn try_run_2()
+{
+    println!("hello, i am running too");
+}
 #[unsafe(no_mangle)]
 fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
-    my_os::init();
 
+    my_os::init();
     /*I hate the fact that this in main and not some function, but the borrow checker fought me and i have lost(the will to live)
     so here it shall remain for now
      */
@@ -68,15 +79,20 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     let reference_counted = Rc::new(vec![1, 2, 3]);
     let cloned_reference = reference_counted.clone();
     println!("current reference count is {}", Rc::strong_count(&cloned_reference));
-    core::mem::drop(reference_counted);
+    drop(reference_counted);
     println!("reference count is {} now", Rc::strong_count(&cloned_reference));
+
+    let scheduler = &SCHEDULER;
+    let task1 = Task::new("task test", try_run);
+
+    let task2 = Task::new("test 2", try_run_2);
+    scheduler.add_task(task1);
+    scheduler.add_task(task2);
 
 
 
 
     println!("It did not crash!");
-
-
 
 
 

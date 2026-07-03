@@ -6,9 +6,9 @@
     use crate::hlt_loop;
     use spin;
     use crate::gdt;
-
+    use crate::allocator::IS_HEAP_INIT;
     use core::sync::atomic::{AtomicUsize, Ordering};
-
+    use crate::scheduler::SCHEDULER;
 
     // Counter that is safe to use across interrupts
     static TIMER_TICKS: AtomicUsize = AtomicUsize::new(0);
@@ -87,8 +87,17 @@
         unsafe {
              PICS.lock()
                 .notify_end_of_interrupt(InterruptIndex::Timer.as_u8());
-
         }
+        unsafe
+            {
+                if IS_HEAP_INIT
+                {
+                    SCHEDULER.schedule();
+                }
+
+
+            }
+
 
 
     }

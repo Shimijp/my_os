@@ -11,9 +11,10 @@ pub enum TaskState {
     Suspended,
     Zombie,
 }
+
 impl PartialEq for TaskState {
     fn eq(&self, other: &Self) -> bool {
-         matches!((self, other),
+        matches!((self, other),
             (TaskState::New, TaskState::New) |
             (TaskState::Ready, TaskState::Ready) |
             (TaskState::Running, TaskState::Running) |
@@ -23,6 +24,23 @@ impl PartialEq for TaskState {
         )
     }
 }
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct TaskContext {
+    // Callee-saved registers
+    pub r15: u64,
+    pub r14: u64,
+    pub r13: u64,
+    pub r12: u64,
+    pub rbp: u64,
+    pub rbx: u64,
+
+    // CPU Flags
+    pub rflags: u64,
+    // Instruction Pointer (return address)
+    pub rip: u64,
+}
+
 
 pub struct Task {
     pub id: usize,
@@ -40,10 +58,25 @@ pub struct Task {
 }
 
 impl Task {
-    pub fn new(name: &str) -> Self {
+    pub fn new(name: &str, entry_point : fn()) -> Self {
         let id = NEXT_TASK_ID.fetch_add(1, Ordering::SeqCst);
         let layout = core::alloc::Layout::from_size_align(STACK_SIZE, 16).unwrap();
-        let stack_ptr = unsafe { alloc::alloc::alloc(layout) as usize + STACK_SIZE };
+        let stack_ptr_end = unsafe { alloc::alloc::alloc(layout) as usize + STACK_SIZE };
+        let stack_ptr = stack_ptr_end - size_of::<TaskContext>();
+        let context = TaskContext {
+            r15: 0,
+            r14: 0,
+            r13: 0,
+            r12: 0,
+            rbp: 0,
+            rbx: 0,
+            rflags: 0x202, // Default RFLAGS value
+            rip: entry_point as u64,        // Set to the entry point of the task
+        };
+        unsafe {
+            let context_ptr = stack_ptr as *mut TaskContext;
+            *context_ptr = context;
+        }
         Task {
             id,
             name: name.into(),
