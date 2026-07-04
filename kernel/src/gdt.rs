@@ -26,9 +26,6 @@ lazy_static!
             let stack_start =  VirtAddr::from_ptr(&raw const STACK);
             let stack_end = stack_start + STACK_SIZE as u64;
             stack_end
-
-
-
         };
         tss
 

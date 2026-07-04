@@ -12,7 +12,7 @@ use bootloader_api::BootInfo;
 use bootloader_api::config::Mapping;
 use core::panic::PanicInfo;
 use my_os::memory::{BootInfoFrameAllocator, init};
-use my_os::{allocator, print, println, serial_println};
+use my_os::{allocator, hlt_loop, println, serial_println};
 use x86_64::VirtAddr;
 use my_os::scheduler::SCHEDULER;
 use my_os::task::Task;
@@ -36,17 +36,23 @@ bootloader_api::entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
 fn try_run()
 {
     println!("hello, i am running");
-    
+    loop {
+        x86_64::instructions::interrupts::enable_and_hlt();
+    }
 }
 fn try_run_2()
 {
     println!("hello, i am running too");
+    loop {
+        x86_64::instructions::interrupts::enable_and_hlt();
+    }
+
 }
 #[unsafe(no_mangle)]
 fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
 
     my_os::init();
-    /*I hate the fact that this in main and not some function, but the borrow checker fought me and i have lost(the will to live)
+    /*I hate the fact that this in main and not some function, but the borrow checker fought me and I have lost(the will to live)
     so here it shall remain for now
      */
     if let Some(framebuffer) = boot_info.framebuffer.as_mut() {
@@ -81,10 +87,8 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     println!("current reference count is {}", Rc::strong_count(&cloned_reference));
     drop(reference_counted);
     println!("reference count is {} now", Rc::strong_count(&cloned_reference));
-
     let scheduler = &SCHEDULER;
     let task1 = Task::new("task test", try_run);
-
     let task2 = Task::new("test 2", try_run_2);
     scheduler.add_task(task1);
     scheduler.add_task(task2);
