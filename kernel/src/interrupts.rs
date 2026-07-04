@@ -8,7 +8,7 @@
     use crate::gdt;
     use crate::allocator::IS_HEAP_INIT;
     use core::sync::atomic::{AtomicUsize, Ordering};
-    use crate::scheduler::SCHEDULER;
+    use crate::scheduler::{ SCHEDULER};
 
     // Counter that is safe to use across interrupts
     static TIMER_TICKS: AtomicUsize = AtomicUsize::new(0);
@@ -32,7 +32,8 @@
                 .set_handler_fn(timer_interrupt_handler);
             idt[InterruptIndex::Keyboard.as_u8()]
                 .set_handler_fn(keyboard_int_handler);
-
+            idt[InterruptIndex::Yield.as_u8()]
+                .set_handler_fn(yield_interrupt_handler);
             idt
         };
     }
@@ -45,6 +46,7 @@
     pub enum InterruptIndex {
         Timer = PIC_1_OFFSET,
         Keyboard ,
+        Yield = 0x81,
     }
 
     impl InterruptIndex
@@ -84,6 +86,7 @@
                 }
             }
         }
+
         unsafe {
              PICS.lock()
                 .notify_end_of_interrupt(InterruptIndex::Timer.as_u8());
@@ -151,4 +154,16 @@
         println!("{:#?}", stack_frame);
         hlt_loop();
 
+    }
+    extern "x86-interrupt" fn yield_interrupt_handler(
+        stack_frame: InterruptStackFrame)
+    {
+        unsafe
+            {
+                if IS_HEAP_INIT
+                {
+                    SCHEDULER.schedule();
+
+                }
+            }
     }

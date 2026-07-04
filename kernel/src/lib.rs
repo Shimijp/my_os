@@ -8,6 +8,8 @@
 use core::panic::PanicInfo;
 use bootloader_api::info::FrameBufferInfo;
 use crate::framebuffer::WRITER;
+use crate::syscall::sys_exit;
+
 extern crate alloc;
 pub mod gdt;
 pub mod allocator;
@@ -19,6 +21,9 @@ pub mod framebuffer;
 mod linked_list_allocator;
 pub mod task;
 pub mod scheduler;
+mod syscall;
+pub mod mutex;
+mod pml4;
 
 pub trait Testable {
     fn run(&self) -> ();
@@ -47,6 +52,7 @@ pub fn test_panic_handler(info: &PanicInfo) -> ! {
     serial_println!("[failed]\n");
     serial_println!("Error: {}\n", info);
     exit_qemu(QemuExitCode::Failed);
+    x86_64::instructions::interrupts::enable();
     loop {}
 }
 
@@ -57,6 +63,7 @@ pub fn test_panic_handler(info: &PanicInfo) -> ! {
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     test_panic_handler(info)
+
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -90,6 +97,9 @@ pub fn init_framebuffer(buffer : &'static mut [u8], info : FrameBufferInfo)
 {
     framebuffer::init(buffer, info);
 
+}
+pub fn exit(status: i32) -> ! {
+    sys_exit(status as u64);
 }
 pub fn init() {
     gdt::init_gdt();

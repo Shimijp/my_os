@@ -1,6 +1,8 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::sync::atomic::{AtomicUsize, Ordering};
+use crate::syscall::task_trampoline;
+
 pub const STACK_SIZE: usize = 4096 * 4; // 16KB stack size
 static NEXT_TASK_ID: AtomicUsize = AtomicUsize::new(0);
 pub enum TaskState {
@@ -10,7 +12,10 @@ pub enum TaskState {
     Waiting,
     Suspended,
     Zombie,
+    Terminated,
+    Blocked,
 }
+
 
 impl PartialEq for TaskState {
     fn eq(&self, other: &Self) -> bool {
@@ -20,7 +25,9 @@ impl PartialEq for TaskState {
             (TaskState::Running, TaskState::Running) |
             (TaskState::Waiting, TaskState::Waiting) |
             (TaskState::Suspended, TaskState::Suspended) |
-            (TaskState::Zombie, TaskState::Zombie)
+            (TaskState::Zombie, TaskState::Zombie) |
+            (TaskState::Terminated, TaskState::Terminated) |
+            (TaskState::Blocked, TaskState::Blocked)
         )
     }
 }
@@ -49,6 +56,7 @@ pub struct Task {
     pub state: TaskState,
     pub page_table: usize,
     pub priority: u8,
+    pub start_time: u64,
     pub cpu_time: u64,
     pub memory_usage: usize,
     pub parent_id: Option<usize>,
@@ -58,11 +66,14 @@ pub struct Task {
 }
 
 impl Task {
-    pub fn new(name: &str, entry_point : fn()) -> Self {
+    pub fn new(name: &str, entry_point : fn() -> u64) -> Self {
         let id = NEXT_TASK_ID.fetch_add(1, Ordering::SeqCst);
         let layout = core::alloc::Layout::from_size_align(STACK_SIZE, 16).unwrap();
         let stack_ptr_end = unsafe { alloc::alloc::alloc(layout) as usize + STACK_SIZE };
-        let stack_ptr = stack_ptr_end - size_of::<TaskContext>();
+
+        // Set up the stack for the new task
+        let trampoline_ptr = (stack_ptr_end - size_of::<usize>()  ) as *mut usize;
+        let stack_ptr = stack_ptr_end - size_of::<TaskContext>() - size_of::<usize>();
         let context = TaskContext {
             r15: 0,
             r14: 0,
@@ -74,6 +85,8 @@ impl Task {
             rip: entry_point as u64,        // Set to the entry point of the task
         };
         unsafe {
+
+            *trampoline_ptr = task_trampoline as usize;
             let context_ptr = stack_ptr as *mut TaskContext;
             *context_ptr = context;
         }
@@ -81,9 +94,10 @@ impl Task {
             id,
             name: name.into(),
             stack_pointer: stack_ptr,
-            state: TaskState::New,
+            state: TaskState::Ready,
             page_table: 0,
             priority: 0,
+            start_time: 0,
             cpu_time: 0,
             memory_usage: STACK_SIZE,
             parent_id: None,
@@ -91,4 +105,24 @@ impl Task {
             exit_code: None,
         }
     }
+    pub fn new_boot_task() -> Self {
+        Task {
+            id: NEXT_TASK_ID.fetch_add(1, Ordering::SeqCst),
+            name: "kernel_main".into(),
+            stack_pointer: 0, // Will be overwritten by the first context switch
+            state: TaskState::Running, // It is currently running
+            page_table: 0,
+            priority: 0,
+            start_time: 0,
+            cpu_time: 0,
+            memory_usage: 0,
+            parent_id: None,
+            children: Vec::new(),
+            exit_code: None,
+        }
+    }
+
+
+
+
 }

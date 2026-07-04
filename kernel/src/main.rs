@@ -6,15 +6,17 @@
 extern crate alloc;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
-use alloc::vec;
+use alloc::{format, vec};
 use alloc::vec::Vec;
 use bootloader_api::BootInfo;
 use bootloader_api::config::Mapping;
 use core::panic::PanicInfo;
+
+use x86_64::instructions::hlt;
 use my_os::memory::{BootInfoFrameAllocator, init};
-use my_os::{allocator, hlt_loop, println, serial_println};
+use my_os::{allocator, println, serial_println};
 use x86_64::VirtAddr;
-use my_os::scheduler::SCHEDULER;
+use my_os::scheduler::{get_current_task_id, HAS_TERMINATED_TASKS, SCHEDULER};
 use my_os::task::Task;
 
 #[panic_handler]
@@ -23,6 +25,25 @@ fn panic(_info: &PanicInfo) -> ! {
     println!("{}", _info);
     serial_println!("{}", _info);
     loop {}
+}
+use x86_64::registers::control::{Cr0, Cr0Flags, Cr4, Cr4Flags};
+use x86_64::structures::paging::FrameAllocator;
+use my_os::mutex::Mutex;
+
+pub fn init_fpu() {
+    unsafe {
+        // 1. CR0: הגדרות בסיס של המעבד המתמטי
+        let mut cr0 = Cr0::read();
+        cr0.remove(Cr0Flags::EMULATE_COPROCESSOR);
+        cr0.insert(Cr0Flags::MONITOR_COPROCESSOR);
+        Cr0::write(cr0);
+
+        // 2. CR4: הפעלת תמיכה באוגרי SSE (XMM) וביכולת לשמור אותם
+        let mut cr4 = Cr4::read();
+        cr4.insert(Cr4Flags::OSFXSR); // OS supports FXSAVE/FXRSTOR
+        cr4.insert(Cr4Flags::OSXMMEXCPT_ENABLE); // אפשר למעבד לזרוק פסיקות על חלוקה באפס של שברים
+        Cr4::write(cr4);
+    }
 }
 
 //mandatory for paging map
@@ -33,24 +54,37 @@ pub static BOOTLOADER_CONFIG: bootloader_api::BootloaderConfig = {
 };
 
 bootloader_api::entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
-fn try_run()
+fn increase() -> u64
 {
-    println!("hello, i am running");
-    loop {
-        x86_64::instructions::interrupts::enable_and_hlt();
-    }
+    let mut lock = MY_MUTEX.lock();
+    *lock += 1;
+    println!("hello, i am running my pid is {}, my mutex value is {}", get_current_task_id(), *lock);
+    0
 }
-fn try_run_2()
+static MY_MUTEX: Mutex<u8> = Mutex::new(0);
+fn task_4() -> u64
 {
-    println!("hello, i am running too");
-    loop {
-        x86_64::instructions::interrupts::enable_and_hlt();
-    }
+    let mut lock = MY_MUTEX.lock();
+    *lock += 1;
+    println!("hello, i am running 4, my mutex value is {}", *lock);
 
+
+    0
 }
+fn task_5() -> u64
+{
+    let mut lock = MY_MUTEX.lock();
+    *lock += 1;
+    println!("hello, i am running 5, my mutex value is {}", *lock);
+
+
+    0
+}
+//stress test ram and cpu by calculating primes up to 1 million and printing them
+
+
 #[unsafe(no_mangle)]
 fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
-
     my_os::init();
     /*I hate the fact that this in main and not some function, but the borrow checker fought me and I have lost(the will to live)
     so here it shall remain for now
@@ -69,6 +103,20 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
 
     let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_regions) };
     // map an unused page
+    let page : x86_64::structures::paging::Page = x86_64::structures::paging::Page::containing_address(VirtAddr::new(0xdeadbeaf000));
+    let frame = frame_allocator.allocate_frame().unwrap();
+    my_os::memory::create_example_mapping(page, &mut mapper, &mut frame_allocator, frame);
+    println!("page starts at : {}", page.start_address().as_u64());
+    println!("frame starts at : {}", frame.start_address().as_u64());
+    println!("page mapped to frame, now writing to page");
+    let page_ptr = page.start_address().as_mut_ptr::<u64>();
+    unsafe {
+        *page_ptr = 42;
+        println!("wrote to page, now reading from page");
+        let value = *page_ptr;
+        println!("read from page: {}", value);
+    }
+
 
     allocator::init_heap(&mut mapper, &mut frame_allocator)
         .expect("heap initialization failed");
@@ -87,18 +135,30 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     println!("current reference count is {}", Rc::strong_count(&cloned_reference));
     drop(reference_counted);
     println!("reference count is {} now", Rc::strong_count(&cloned_reference));
+    init_fpu();
     let scheduler = &SCHEDULER;
-    let task1 = Task::new("task test", try_run);
-    let task2 = Task::new("test 2", try_run_2);
-    scheduler.add_task(task1);
-    scheduler.add_task(task2);
-
-
+    for i in 0..63 {
+        let task_name = format!("task_{}", i);
+        let task_entry = match i {
+            4 => task_4,
+            5 => task_5,
+            _ => increase,
+        };
+        let task = Task::new(&task_name, task_entry);
+        scheduler.add_task(task);
+    }
 
 
     println!("It did not crash!");
 
 
-
-    my_os::hlt_loop();
+    loop {
+        unsafe {
+            if HAS_TERMINATED_TASKS.load(core::sync::atomic::Ordering::SeqCst)
+            {
+                SCHEDULER.clear_terminated_tasks();
+            }
+        }
+        hlt();
+    }
 }
