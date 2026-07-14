@@ -13,7 +13,8 @@ use x86_64::{
     },
     VirtAddr,
 };
-use crate::linked_list_allocator::{LinkedListAllocator, LockedLinkedListAllocator};
+use crate::linked_list_allocator::{ LockedLinkedListAllocator};
+use crate::println;
 
 pub fn init_heap(
     mapper: &mut impl Mapper<Size4KiB>,

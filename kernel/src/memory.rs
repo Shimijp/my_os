@@ -1,11 +1,15 @@
     use bootloader_api;
     use bootloader_api::info::{MemoryRegionKind, MemoryRegions};
+    use spin::Mutex;
     use x86_64::structures::paging::{OffsetPageTable, PageTable};
     use x86_64::{
         PhysAddr, VirtAddr,
         structures::paging::{FrameAllocator, Mapper, Page, PhysFrame, Size4KiB},
     };
 
+
+    pub static  FRAME_ALLOCATOR: Mutex<Option<BootInfoFrameAllocator>> = Mutex::new(None);
+    pub static  PHYS_MEM_OFFSET: Mutex<VirtAddr> = Mutex::new(VirtAddr::new(0));
     pub struct BootInfoFrameAllocator {
         memory_region: &'static MemoryRegions,
         next: usize,
@@ -32,7 +36,7 @@
             frame_addr.map(|addr| PhysFrame::containing_address(PhysAddr::new(addr)))
         }
     }
-    
+
     pub unsafe fn active_level_4_table(phys_mem_offset: VirtAddr) -> &'static mut PageTable {
         use x86_64::registers::control::Cr3;
         let (level_4_table_frame, _) = Cr3::read();
@@ -45,6 +49,7 @@
     pub unsafe fn init(physical_memory_offset: VirtAddr) -> OffsetPageTable<'static> {
         unsafe {
             let level_4_table = active_level_4_table(physical_memory_offset);
+
             OffsetPageTable::new(level_4_table, physical_memory_offset)
         }
     }
@@ -55,7 +60,7 @@
         frame : PhysFrame
     ) {
         use x86_64::structures::paging::PageTableFlags as Flags;
-        
+
         let flags = Flags::PRESENT | Flags::WRITABLE;
         let map_to_res = unsafe { mapper.map_to(page, frame, flags, frame_allocator) };
         map_to_res.expect("map failed").flush();

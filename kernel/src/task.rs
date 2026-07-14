@@ -1,6 +1,9 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::sync::atomic::{AtomicUsize, Ordering};
+use x86_64::structures::paging::PhysFrame;
+use crate::pml4::creat_new_plm4;
+use crate::println;
 use crate::syscall::task_trampoline;
 
 pub const STACK_SIZE: usize = 4096 * 4; // 16KB stack size
@@ -54,7 +57,7 @@ pub struct Task {
     pub name: String,
     pub stack_pointer: usize,
     pub state: TaskState,
-    pub page_table: usize,
+    pub page_table: PhysFrame,
     pub priority: u8,
     pub start_time: u64,
     pub cpu_time: u64,
@@ -62,6 +65,7 @@ pub struct Task {
     pub parent_id: Option<usize>,
     pub children: Vec<usize>,
     pub exit_code: Option<i32>,
+
 
 }
 
@@ -90,12 +94,15 @@ impl Task {
             let context_ptr = stack_ptr as *mut TaskContext;
             *context_ptr = context;
         }
+        let mut global_frame_allocator_guard = crate::memory::FRAME_ALLOCATOR.lock();
+        let global_frame_allocator = global_frame_allocator_guard.as_mut()
+            .expect("Frame allocator not initialized");
         Task {
             id,
             name: name.into(),
             stack_pointer: stack_ptr,
             state: TaskState::Ready,
-            page_table: 0,
+            page_table: creat_new_plm4(global_frame_allocator, crate::memory::PHYS_MEM_OFFSET.lock().clone()) ,
             priority: 0,
             start_time: 0,
             cpu_time: 0,
@@ -106,12 +113,14 @@ impl Task {
         }
     }
     pub fn new_boot_task() -> Self {
+
+        let (start_frame, _) = x86_64::registers::control::Cr3::read();
         Task {
             id: NEXT_TASK_ID.fetch_add(1, Ordering::SeqCst),
             name: "kernel_main".into(),
             stack_pointer: 0, // Will be overwritten by the first context switch
             state: TaskState::Running, // It is currently running
-            page_table: 0,
+            page_table: start_frame,
             priority: 0,
             start_time: 0,
             cpu_time: 0,

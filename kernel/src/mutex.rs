@@ -48,7 +48,6 @@ pub struct MutexGuard<'a, T> {
     mutex: &'a Mutex<T>,
 }
 
-// i fucking hate rust this is so complicated why????? why????? fuck this shit
 impl<'a, T> Drop for MutexGuard<'a, T> {
     fn drop(&mut self) {
         self.mutex.unlock();
