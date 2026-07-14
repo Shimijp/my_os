@@ -165,7 +165,7 @@
                 let pointers = {
                     let mut scheduler = self.inner.lock();
                     scheduler.prepare_schedule()
-                }; // ← ה-lock מת כאן — אין deadlock
+                }; 
 
                 if let Some((old_stack, new_stack, next_pt)) = pointers {
                     let (cur_pt, flags) = x86_64::registers::control::Cr3::read();

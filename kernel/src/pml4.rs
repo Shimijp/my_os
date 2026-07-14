@@ -14,7 +14,10 @@ pub fn create_new_pml4(frame_allocator: &mut impl FrameAllocator<Size4KiB>, phys
     let page_table =  pml4_ptr as *mut x86_64::structures::paging::PageTable;
     unsafe {
         let kernel_page = active_level_4_table(phys_mem_offset);
-        for i in 256 ..512 {
+        for i in 0 ..512 {
+            if kernel_page[i].is_unused() {
+                continue;
+            }
             (&mut (*page_table))[i] = kernel_page[i].clone();
 
         }
