@@ -47,7 +47,7 @@ pub fn init_fpu() {
 //mandatory for paging map
 pub static BOOTLOADER_CONFIG: bootloader_api::BootloaderConfig = {
     let mut config = bootloader_api::BootloaderConfig::new_default();
-    config.mappings.physical_memory = Some(Mapping::Dynamic);
+    config.mappings.physical_memory = Some(Mapping::FixedAddress(0xFFFF_8000_0000_0000));
     config
 };
 
@@ -64,7 +64,7 @@ static MY_MUTEX: Mutex<u8> = Mutex::new(0);
 fn task_5() -> u64
 {
 
-    let vec = (2..10_000_000).filter(|&n| is_prime(n)).collect::<Vec<u64>>();
+    let vec = (2..10_000).filter(|&n| is_prime(n)).collect::<Vec<u64>>();
     println!("task 5 found {} primes", vec.len());
 
 
@@ -103,6 +103,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     }
 
     let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset.into_option().unwrap());
+    println!("physical memory offset is {:?}", phys_mem_offset);
     let mut mapper = unsafe { init(phys_mem_offset) };
     let  frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_regions) };
     // map an unused page

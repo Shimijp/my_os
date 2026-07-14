@@ -2,7 +2,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use x86_64::structures::paging::PhysFrame;
-use crate::pml4::creat_new_plm4;
+use crate::pml4::{ create_new_pml4};
 use crate::println;
 use crate::syscall::task_trampoline;
 
@@ -102,7 +102,7 @@ impl Task {
             name: name.into(),
             stack_pointer: stack_ptr,
             state: TaskState::Ready,
-            page_table: creat_new_plm4(global_frame_allocator, crate::memory::PHYS_MEM_OFFSET.lock().clone()) ,
+            page_table: create_new_pml4(global_frame_allocator, crate::memory::PHYS_MEM_OFFSET.lock().clone()) ,
             priority: 0,
             start_time: 0,
             cpu_time: 0,

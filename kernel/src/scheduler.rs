@@ -40,10 +40,11 @@
         }
 
         /// Round-robin scheduling algorithm
-        pub fn prepare_schedule(&mut self) -> Option<(*mut usize, usize)> {
+        pub fn prepare_schedule(&mut self) -> Option<(*mut usize, usize, x86_64::structures::paging::PhysFrame)> {
 
             let current_task_id = self.current_task;
             let current_task: &mut Task = self.get_current_task();
+
 
             unsafe {
                 current_task.cpu_time += core::arch::x86_64::_rdtsc() - current_task.start_time;
@@ -58,17 +59,16 @@
             if current_task_id == next_task_id {
                 return None;
             }
+            let page_table = next_task.page_table;
             let new_stack = next_task.stack_pointer;
             next_task.state = crate::task::TaskState::Running;
             self.current_task = next_task.id;
-            Some((old_stack, new_stack))
+            Some((old_stack, new_stack, page_table))
         }
         pub fn clear_terminated_tasks(&mut self) {
             self.tasks.retain(|task| task.state != crate::task::TaskState::Terminated && task.state != crate::task::TaskState::Zombie);
-            unsafe
-                {
-                    HAS_TERMINATED_TASKS.swap(false, core::sync::atomic::Ordering::SeqCst);
-                }
+            HAS_TERMINATED_TASKS.swap(false, core::sync::atomic::Ordering::SeqCst);
+
         }
 
         pub fn select_next_task(&mut self) -> &mut Task {
@@ -161,17 +161,22 @@
     impl SchedulerWrapper {
         // Wraps the inner schedule method with interrupts disabled and locks
         pub fn schedule(&self) {
-            let pointers = without_interrupts(|| {
-                let mut scheduler = self.inner.lock();
-                scheduler.prepare_schedule()
-            });
-            //to prevent deadlock
-            if let Some((old_stack, new_stack)) = pointers {
-                unsafe {
-                    switch_task(old_stack, new_stack);
+            without_interrupts(|| {
+                let pointers = {
+                    let mut scheduler = self.inner.lock();
+                    scheduler.prepare_schedule()
+                }; // ← ה-lock מת כאן — אין deadlock
+
+                if let Some((old_stack, new_stack, next_pt)) = pointers {
+                    let (cur_pt, flags) = x86_64::registers::control::Cr3::read();
+                    if cur_pt != next_pt {
+                        unsafe { x86_64::registers::control::Cr3::write(next_pt, flags); }
+                    }
+                    unsafe { switch_task(old_stack, new_stack); }
                 }
-            }
+            });
         }
+
         pub fn exit_current_task(&self, exit_code: i32) {
             without_interrupts(|| {
                 let mut scheduler = self.inner.lock();
