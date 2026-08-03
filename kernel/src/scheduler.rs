@@ -11,7 +11,7 @@
 
     pub static HAS_TERMINATED_TASKS: AtomicBool = AtomicBool::new(false);
 
-    use crate::task::Task;
+    use crate::task::{Task, STACK_SIZE};
     pub const MAX_TASKS: usize = 64;
 
     pub struct Scheduler {

@@ -56,6 +56,7 @@ pub struct Task {
     pub id: usize,
     pub name: String,
     pub stack_pointer: usize,
+    pub base_stack :  Option<usize>,
     pub state: TaskState,
     pub page_table: PhysFrame,
     pub priority: u8,
@@ -69,11 +70,21 @@ pub struct Task {
 
 }
 
+impl Drop for Task {
+    fn drop(&mut self) {
+        if let Some(base) = self.base_stack {
+            let layout = core::alloc::Layout::from_size_align(STACK_SIZE, 16).unwrap();
+            unsafe { alloc::alloc::dealloc(base as *mut u8, layout) };
+        }
+
+    }
+}
 impl Task {
     pub fn new(name: &str, entry_point : fn() -> u64) -> Self {
         let id = NEXT_TASK_ID.fetch_add(1, Ordering::SeqCst);
         let layout = core::alloc::Layout::from_size_align(STACK_SIZE, 16).unwrap();
-        let stack_ptr_end = unsafe { alloc::alloc::alloc(layout) as usize + STACK_SIZE };
+        let base = unsafe { alloc::alloc::alloc(layout) } as usize;
+        let stack_ptr_end=  base + STACK_SIZE;
 
         // Set up the stack for the new task
         let trampoline_ptr = (stack_ptr_end - size_of::<usize>()  ) as *mut usize;
@@ -101,6 +112,7 @@ impl Task {
             id,
             name: name.into(),
             stack_pointer: stack_ptr,
+            base_stack : Some(base) ,
             state: TaskState::Ready,
             page_table: create_new_pml4(global_frame_allocator, crate::memory::PHYS_MEM_OFFSET.lock().clone()) ,
             priority: 0,
@@ -119,6 +131,7 @@ impl Task {
             id: NEXT_TASK_ID.fetch_add(1, Ordering::SeqCst),
             name: "kernel_main".into(),
             stack_pointer: 0, // Will be overwritten by the first context switch
+            base_stack : None ,
             state: TaskState::Running, // It is currently running
             page_table: start_frame,
             priority: 0,
