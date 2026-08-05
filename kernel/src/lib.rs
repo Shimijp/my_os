@@ -24,6 +24,7 @@ pub mod scheduler;
 mod syscall;
 pub mod mutex;
 mod pml4;
+pub mod CMOS;
 
 pub trait Testable {
     fn run(&self) -> ();

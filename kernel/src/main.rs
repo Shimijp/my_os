@@ -18,6 +18,7 @@ use my_os::{allocator,  println, serial_println};
 use x86_64::VirtAddr;
 use my_os::scheduler::{get_current_task_id, HAS_TERMINATED_TASKS, SCHEDULER};
 use my_os::task::Task;
+use my_os::CMOS;
 
 #[panic_handler]
 #[cfg(not(test))]
@@ -27,6 +28,7 @@ fn panic(_info: &PanicInfo) -> ! {
     loop {}
 }
 use x86_64::registers::control::{Cr0, Cr0Flags, Cr4, Cr4Flags};
+use my_os::CMOS::CMO;
 use my_os::mutex::Mutex;
 
 pub fn init_fpu() {
@@ -60,7 +62,13 @@ fn increase() -> u64
     0
 }
 static MY_MUTEX: Mutex<u8> = Mutex::new(0);
+fn task_6() -> u64{
 
+    let mut cmo_lock = CMO.lock();
+    println!("{}", &mut cmo_lock.get_time_and_date(3));
+    CMO.unlock();
+    0
+}
 fn task_5() -> u64
 {
 
@@ -140,6 +148,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
         let task_name = format!("task_{}", i);
         let task_entry = match i {
             5 => task_5,
+            6 => task_6,
             _ => increase,
         };
         let task = Task::new(&task_name, task_entry);
