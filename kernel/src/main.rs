@@ -62,20 +62,8 @@ fn increase() -> u64
     0
 }
 static MY_MUTEX: Mutex<u8> = Mutex::new(0);
-fn task_6() -> u64{
-
-    let mut cmo_lock = CMO.lock();
-    println!("{}", &mut cmo_lock.get_time_and_date(3));
-    CMO.unlock();
-    0
-}
-fn task_5() -> u64
+pub fn task()-> u64
 {
-
-    let vec = (2..10_000).filter(|&n| is_prime(n)).collect::<Vec<u64>>();
-    println!("task 5 found {} primes", vec.len());
-
-
     0
 }
 fn is_prime(n: u64) -> bool {
@@ -144,7 +132,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     println!("reference count is {} now", Rc::strong_count(&cloned_reference));
     init_fpu();
     let scheduler = &SCHEDULER;
-    for i in 0..7 {
+    /*for i in 0..7 {
         let task_name = format!("task_{}", i);
         let task_entry = match i {
             5 => task_5,
@@ -153,7 +141,9 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
         };
         let task = Task::new(&task_name, task_entry);
         scheduler.add_task(task);
-    }
+    }*/
+    let task = Task::new("hello", task);
+    scheduler.add_task(task);
 
 
     println!("It did not crash!");

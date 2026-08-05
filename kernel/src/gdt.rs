@@ -6,12 +6,12 @@ use crate::mutex::Mutex;
 use crate::println;
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
-struct Selectors {
+pub struct Selectors {
     data_selector: SegmentSelector,
     code_selector: SegmentSelector,
     tss_selector: SegmentSelector,
-    user_data_selector : SegmentSelector,
-    user_code_selector: SegmentSelector
+    pub user_data_selector : SegmentSelector,
+    pub user_code_selector: SegmentSelector
 
 }
 
@@ -35,7 +35,7 @@ lazy_static!
 }
 lazy_static!
 {
-     static ref GDT :( GlobalDescriptorTable , Selectors)=
+     pub static ref GDT :( GlobalDescriptorTable , Selectors)=
     {
         let mut gdt = GlobalDescriptorTable::new();
         let data_selector = gdt.append(Descriptor::kernel_data_segment());
