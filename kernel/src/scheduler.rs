@@ -7,6 +7,7 @@
     use lazy_static::lazy_static;
     use spin::Mutex;
     use x86_64::instructions::interrupts::without_interrupts;
+    use crate::gdt::set_kernel_stack;
     use crate::println;
 
     pub static HAS_TERMINATED_TASKS: AtomicBool = AtomicBool::new(false);
@@ -40,7 +41,7 @@
         }
 
         /// Round-robin scheduling algorithm
-        pub fn prepare_schedule(&mut self) -> Option<(*mut usize, usize, x86_64::structures::paging::PhysFrame)> {
+        pub fn prepare_schedule(&mut self) -> Option<(*mut usize, usize, x86_64::structures::paging::PhysFrame, usize)> {
 
             let current_task_id = self.current_task;
             let current_task: &mut Task = self.get_current_task();
@@ -61,9 +62,10 @@
             }
             let page_table = next_task.page_table;
             let new_stack = next_task.stack_pointer;
+            let kernel_stack = next_task.kernel_stack;
             next_task.state = crate::task::TaskState::Running;
             self.current_task = next_task.id;
-            Some((old_stack, new_stack, page_table))
+            Some((old_stack, new_stack, page_table, kernel_stack))
         }
         pub fn clear_terminated_tasks(&mut self) {
             self.tasks.retain(|task| task.state != crate::task::TaskState::Terminated && task.state != crate::task::TaskState::Zombie);
@@ -153,7 +155,7 @@
         SCHEDULER.get_current_task_id()
     }
     unsafe extern "C" {
-        pub fn switch_task(old_stack: *mut usize, new_stack: usize);
+        pub fn switch_task(old_stack: *mut usize, new_stack: usize, kernel_stack: usize);
     }
     pub struct SchedulerWrapper {
         pub inner: Mutex<Scheduler>,
@@ -167,12 +169,13 @@
                     scheduler.prepare_schedule()
                 }; 
 
-                if let Some((old_stack, new_stack, next_pt)) = pointers {
+                if let Some((old_stack, new_stack, next_pt, kernel_stack)) = pointers {
                     let (cur_pt, flags) = x86_64::registers::control::Cr3::read();
                     if cur_pt != next_pt {
                         unsafe { x86_64::registers::control::Cr3::write(next_pt, flags); }
                     }
-                    unsafe { switch_task(old_stack, new_stack); }
+                    set_kernel_stack(kernel_stack);
+                    unsafe { switch_task(old_stack, new_stack, kernel_stack); }
                 }
             });
         }

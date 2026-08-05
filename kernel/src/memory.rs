@@ -1,7 +1,7 @@
     use bootloader_api;
     use bootloader_api::info::{MemoryRegionKind, MemoryRegions};
     use spin::Mutex;
-    use x86_64::structures::paging::{OffsetPageTable, PageTable};
+    use x86_64::structures::paging::{FrameDeallocator, OffsetPageTable, PageTable};
     use x86_64::{
         PhysAddr, VirtAddr,
         structures::paging::{FrameAllocator, Mapper, Page, PhysFrame, Size4KiB},
@@ -19,6 +19,13 @@
             let frame = self.usable_frames().nth(self.next);
             self.next += 1;
             frame
+        }
+
+    }
+    impl FrameDeallocator<Size4KiB> for BootInfoFrameAllocator
+    {
+        unsafe fn deallocate_frame(&mut self, frame: PhysFrame<Size4KiB>) {
+
         }
     }
     impl BootInfoFrameAllocator {
@@ -53,15 +60,4 @@
             OffsetPageTable::new(level_4_table, physical_memory_offset)
         }
     }
-    pub fn create_example_mapping(
-        page: Page,
-        mapper: &mut OffsetPageTable,
-        frame_allocator: &mut impl FrameAllocator<Size4KiB>,
-        frame : PhysFrame
-    ) {
-        use x86_64::structures::paging::PageTableFlags as Flags;
 
-        let flags = Flags::PRESENT | Flags::WRITABLE;
-        let map_to_res = unsafe { mapper.map_to(page, frame, flags, frame_allocator) };
-        map_to_res.expect("map failed").flush();
-    }
