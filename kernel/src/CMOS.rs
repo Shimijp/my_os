@@ -113,8 +113,8 @@ impl Display for Date
 
 pub struct TimeAndDate
 {
-    date: Date,
-    time: Time,
+    pub date: Date,
+    pub time: Time,
 }
 impl Display for TimeAndDate
 {

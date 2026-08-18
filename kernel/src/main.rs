@@ -64,6 +64,11 @@ fn increase() -> u64
 static MY_MUTEX: Mutex<u8> = Mutex::new(0);
 pub fn task()-> u64
 {
+    let mut cmo_lock = CMOS::CMO.lock();
+    let date_and_time = cmo_lock.get_time_and_date(3);
+    println!("date now is: {}\ntime in Israel is: {}", date_and_time.date, date_and_time.time);
+    drop(cmo_lock);
+
     0
 }
 fn is_prime(n: u64) -> bool {
@@ -132,17 +137,13 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     println!("reference count is {} now", Rc::strong_count(&cloned_reference));
     init_fpu();
     let scheduler = &SCHEDULER;
-    /*for i in 0..7 {
+    for i in 0..7 {
         let task_name = format!("task_{}", i);
-        let task_entry = match i {
-            5 => task_5,
-            6 => task_6,
-            _ => increase,
-        };
+        let task_entry = increase;
         let task = Task::new(&task_name, task_entry);
         scheduler.add_task(task);
-    }*/
-    let task = Task::new("hello", task);
+    }
+    let task = Task::new("date and time task", task);
     scheduler.add_task(task);
 
 
